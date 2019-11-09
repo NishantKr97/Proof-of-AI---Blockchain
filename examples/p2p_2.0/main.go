@@ -39,21 +39,18 @@ type Block struct {
 	PrevHash  string
 }
 
-type StakeBlock struct {
-	User string
-	Stake int
-	NoOfUsers int
+type rangeStake struct {
+	Number int
 }
+var arraylist []rangeStake
+
 
 // Blockchain is a series of validated Blocks
 var Blockchain []Block
-var UserStakes []StakeBlock
-var BasicHostId string
-var choice int
 
 var mutex = &sync.Mutex{}
 
-var ValidatorID string
+var BasicHostId string
 
 // makeBasicHost creates a LibP2P host with a random peer ID listening on the
 // given multiaddress. It will use secio if secio is true.
@@ -70,7 +67,7 @@ func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error
 	}
 
 	// Generate a key pair for this host. We will use it
-	// to obtain a valid host ID. 
+	// to obtain a valid host ID.
 	priv, _, err := crypto.GenerateKeyPairWithReader(crypto.RSA, 2048, r)
 	if err != nil {
 		return nil, err
@@ -87,6 +84,7 @@ func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error
 	}
 
 	BasicHostId = basicHost.ID().Pretty()
+
 
 	// Build host multiaddress
 	hostAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ipfs/%s", basicHost.ID().Pretty()))
@@ -115,14 +113,16 @@ func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error
 
 func handleStream(s net.Stream) {
 
-	choice = 0
-
 	log.Println("Got a new stream!")
 
 	// Create a buffer stream for non blocking read and write.
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-	go readStake(rw,s)
-	go writeStake(rw,s)
+
+	fmt.Println("hi befre read 1")
+	go readData(rw)
+	fmt.Println("hi between 1")
+	go writeData(rw)
+	fmt.Println("hi after write 1")
 
 	// go readData(rw)
 	// go writeData(rw)
@@ -130,81 +130,57 @@ func handleStream(s net.Stream) {
 	// stream 's' will stay open until you close it (or the other side closes it).
 }
 
-func decideValidator(rw *bufio.ReadWriter, s net.Stream){
-	fmt.Println("\nLet's decide the winner...")
+func readData(rw *bufio.ReadWriter) {
 
-	ValidatorID = UserStakes[3].User
-	var max int
-	for i:=0;i<len(UserStakes);i++{
-		
-	}
-
-	fmt.Printf("\nWinner is : %s\n", ValidatorID)	
-
-	// mutex.Lock()
-	// if(BasicHostId == ValidatorID){
-	// 	go writeData(rw)
-	// }else {
-	// 	// fmt.Println("Going in....................")
-	// 	go readData(rw)
-	// }
-	// mutex.Unlock()
-
-}
-
-func readStake(rw *bufio.ReadWriter, s net.Stream) {
-	flag := 0
 	for {
 		str, err := rw.ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		if str == "" || flag == 1{
+
+		if str == "" {
 			return
 		}
 		if str != "\n" {
 
-			chain := make([]StakeBlock, 0)
+			chain := make([]Block, 0)
 			if err := json.Unmarshal([]byte(str), &chain); err != nil {
 				log.Fatal(err)
 			}
 
+			// Search element in arraylist 
+			for i:=0;i<10;i++{
+				if arraylist[i].Number == chain[len(chain)-1].BPM {
+					arraylist[i].Number = -1
+				}
+			}
+			fmt.Println(arraylist)
+
 			mutex.Lock()
-			if len(chain) > len(UserStakes) {
-				UserStakes = chain
-				bytes, err := json.MarshalIndent(UserStakes, "", "  ")
+			if len(chain) > len(Blockchain) {
+				Blockchain = chain
+				bytes, err := json.MarshalIndent(Blockchain, "", "  ")
 				if err != nil {
+
 					log.Fatal(err)
 				}
 				// Green console color: 	\x1b[32m
 				// Reset console color: 	\x1b[0m
-				if(len(UserStakes) < 4){	
-					fmt.Printf("\x1b[32m%s\x1b[0mEnter Token read: ", string(bytes))
-				}else {
-					fmt.Printf("\x1b[32m%s\x1b[0mAll the Validators have staked some amount!!!\n", string(bytes))
-					mutex.Unlock()
-					// go decideValidator(rw,s)
-					flag = 1
-					
-					break
-				}
+				fmt.Printf("\x1b[32m%s\x1b[0m> ", string(bytes))
 			}
 			mutex.Unlock()
-
-
 		}
 	}
 }
 
-
-func writeStake(rw *bufio.ReadWriter, s net.Stream) {
+func writeData(rw *bufio.ReadWriter) {
 
 	go func() {
 		for {
 			time.Sleep(5 * time.Second)
 			mutex.Lock()
-			bytes, err := json.Marshal(UserStakes)
+			bytes, err := json.Marshal(Blockchain)
 			if err != nil {
 				log.Println(err)
 			}
@@ -221,156 +197,118 @@ func writeStake(rw *bufio.ReadWriter, s net.Stream) {
 	stdReader := bufio.NewReader(os.Stdin)
 
 	for {
+		fmt.Print("> ")
+		sendData, err := stdReader.ReadString('\n')
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		sendData = strings.Replace(sendData, "\n", "", -1)
+		bpm, err := strconv.Atoi(sendData)
+		if err != nil {
+			log.Fatal(err)
+		}
+		newBlock := generateBlock(Blockchain[len(Blockchain)-1], bpm)
+
+		if isBlockValid(newBlock, Blockchain[len(Blockchain)-1]) {
+			mutex.Lock()
+			Blockchain = append(Blockchain, newBlock)
+			mutex.Unlock()
+		}
+
+		bytes, err := json.Marshal(Blockchain)
+		if err != nil {
+			log.Println(err)
+		}
+
+
+		// Entered value
+		valueEntered, err := strconv.Atoi(sendData)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("You entered : " + strconv.Itoa(valueEntered))
+
+
+		// Search element in arraylist 
 		flag := 0
-		for i := range UserStakes {
- 		   if UserStakes[i].User == BasicHostId {
-        		// Found!
-        		flag = 1
-    		}
+		for i:=0;i<10;i++{
+			if arraylist[i].Number == valueEntered {
+				arraylist[i].Number = -1
+				flag = 1
+			}
 		}
 
-		if flag == 0 { 
-			fmt.Print("Enter Token : ")
-			sendData, err := stdReader.ReadString('\n')
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			sendData = strings.Replace(sendData, "\n", "", -1)
-			bpm, err := strconv.Atoi(sendData)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			newStakeBlock := StakeBlock{BasicHostId, bpm, len(UserStakes) + 1}
-
-	
-			// Appending a new Stake Block
-			mutex.Lock()
-			UserStakes = append(UserStakes, newStakeBlock)
-			mutex.Unlock()
-
-
-			bytes, err := json.Marshal(UserStakes)
-			if err != nil {
-				log.Println(err)
-			}
-
-			spew.Dump(UserStakes)
-
-			mutex.Lock()
-			rw.WriteString(fmt.Sprintf("%s\n", string(bytes)))
-
-
+		var textToBeAdded string
+		if (flag == 1){
+			textToBeAdded = "UserId : " + BasicHostId + "\t" + "Number of Blocks Mined : 1\t" + "Wrong Transactions : 0\n"  
+		} else {
+			textToBeAdded = "UserId : " + BasicHostId + "\t" + "number of Blocks Mined : 0\t" + "Wrong Transactions : 1\n" 
+		}
 		
-			rw.Flush()
-			mutex.Unlock()
+
+		f, err := os.OpenFile("data.txt", os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+    		panic(err)
 		}
 
-		if(len(UserStakes) < 4){	
-			// fmt.Printf("")
-		}else{
-			fmt.Printf("All the Validators have staked some amount!!!\n")
-			go decideValidator(rw,s)
-			break
-		}		
+		defer f.Close()
 
+		if _, err = f.WriteString(textToBeAdded); err != nil {
+    		panic(err)
+		}
+
+
+		fmt.Println(arraylist)
+
+		spew.Dump(Blockchain)
+
+		mutex.Lock()
+		rw.WriteString(fmt.Sprintf("%s\n", string(bytes)))
+
+		rw.Flush()
+		mutex.Unlock()
 	}
+
 }
 
-
-// func readData(rw *bufio.ReadWriter) {
-// 	fmt.Println("Galibaa000")
-// 	//rw.Flush()
-
-
-// 	for {
-// 		str, err := rw.ReadString('\n')
-// 		//fmt.Println(str)
-// 		fmt.Println("Galibaa111")
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		fmt.Println("Galibaa222")
-// 		if str == "" {
-// 			return
-// 		}
-// 		fmt.Println("Galibaa333")
-// 		if str != "\n" && str[3] != 'U'{
-// 			fmt.Printf("str -> %s\n", str)
-// 			fmt.Println("Galibaa444")
-// 			chain := make([]Block, 0)
-// 			if err := json.Unmarshal([]byte(str), &chain); err != nil {
-// 				log.Fatal(err)
-// 			}
-// 			mutex.Lock()
-// 			if len(chain) > len(Blockchain) {
-// 				Blockchain = chain
-// 				bytes, err := json.MarshalIndent(Blockchain, "", "  ")
-// 				if err != nil {
-// 					log.Fatal(err)
-// 				}
-// 				// Green console color: 	\x1b[32m
-// 				// Reset console color: 	\x1b[0m
-// 				fmt.Printf("\x1b[32m%s\x1b[0m> ", string(bytes))
-// 			}
-// 			mutex.Unlock()
-// 		}
-// 	}
-// }
-
-// func writeData(rw *bufio.ReadWriter) {
-// 	//rw.Flush()
-
-// 	stdReader := bufio.NewReader(os.Stdin)
-
-// 	for {
-// 		fmt.Print("Enter bpm : ")
-// 		sendData, err := stdReader.ReadString('\n')
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		sendData = strings.Replace(sendData, "\n", "", -1)
-// 		bpm, err := strconv.Atoi(sendData)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-		
-// 		newBlock := generateBlock(Blockchain[len(Blockchain)-1], bpm)
-
-
-// 		// if isBlockValid(newBlock, Blockchain[len(Blockchain)-1]) {
-// 		// 	mutex.Lock()
-// 			Blockchain = append(Blockchain, newBlock)
-// 		// 	mutex.Unlock()
-// 		// }
-
-// 		bytes2, err := json.Marshal(Blockchain)
-// 		// fmt.Printf("Marshal Write Print-> %s\n", bytes)
-// 		if err != nil {
-// 			log.Println(err)
-// 		}
-
-// 		spew.Dump(Blockchain)
-
-// 		mutex.Lock()
-// 		//rw.WriteString(fmt.Sprintf("%s\n", string(bytes)))
-// 		rw.WriteString(fmt.Sprintf("%s\n", string(bytes2)))
-
-// 		//fmt.Println(rw.Flush())
-// 		rw.Flush()
-// 		mutex.Unlock()
-// 		str, err := rw.ReadString('\n')
-// 		fmt.Println("String is %s",str)
-// 	}
-
-// }
-
 func main() {
+
+	f, err := os.Create("data.txt")
+    if err != nil {
+        fmt.Println(err)
+       	return
+    }
+
+    l, err := f.WriteString("Welcome to Our BlockChain World!!!\n")
+    if err != nil {
+        fmt.Println(err)
+        f.Close()
+        return
+    }
+    fmt.Println(l, "bytes written successfully")
+    err = f.Close()
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+
+
+
+
+	for i:=0;i<10;i++{
+		newVal := rangeStake{}
+		newVal = rangeStake{i}
+		arraylist = append(arraylist, newVal)
+	}
+	fmt.Println(arraylist)
+
+	// Uncomment later ---- originalArrayList := arraylist
+
+
 	t := time.Now()
 	genesisBlock := Block{}
 	genesisBlock = Block{0, t.String(), 0, calculateHash(genesisBlock), ""}
-
 
 	Blockchain = append(Blockchain, genesisBlock)
 
@@ -445,22 +383,15 @@ func main() {
 		// Create a buffered stream so that read and writes are non blocking.
 		rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 
-		// Create a thread to read and write User details
-		s2, err := ha.NewStream(context.Background(), peerid, "/p2p/1.0.0")
-		if err != nil {
-			log.Fatalln(err)
-		}
-		go writeStake(rw,s2)
-		go readStake(rw,s2)
-
-		// go decideValidator(rw,s)
-
-
 
 		// Create a thread to read and write data.
-		// go writeData(rw)
-		// go readData(rw)
+		fmt.Println("hi befre write")
+		go readData(rw)
+				fmt.Println("hi between")
 
+		go writeData(rw)
+		
+		fmt.Println("hi after read")
 
 		select {} // hang forever
 
