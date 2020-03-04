@@ -28,6 +28,7 @@ type Block struct {
 	Hash      string
 	PrevHash  string
 	Validator string
+	MerkelRoot string
 }
 
 // Blockchain is a series of validated Blocks
@@ -35,6 +36,10 @@ var Blockchain []Block
 var tempBlocks []Block
 
 var WinnerIndex int = 0
+
+var arraylist []int
+var minerCapacity []int
+// var winnerTimes []int
 
 
 var lotteryPool []string
@@ -50,6 +55,11 @@ var mutex = &sync.Mutex{}
 
 // validators keeps track of open validators and balances
 var validators = make(map[string]int)
+var winnerTimes = make(map[string]int)
+var finalWinnerTimes = make(map[string]int)
+var count int = 0
+var start time.Time
+var cost int 
 
 func main() {
 	// err := godotenv.Load()
@@ -60,10 +70,58 @@ func main() {
 	// create genesis block
 	t := time.Now()
 	genesisBlock := Block{}
-	genesisBlock = Block{0, t.String(), "Welcome", calculateBlockHash(genesisBlock), "", ""}
+	genesisBlock = Block{0, t.String(), "Welcome", calculateBlockHash(genesisBlock), "", "", calculateMerkelHash(genesisBlock)}
 	spew.Dump(genesisBlock)
 	Blockchain = append(Blockchain, genesisBlock)
 
+	f, err := os.Create("data.txt")
+    if err != nil {
+        fmt.Println(err)
+       	return
+    }
+
+    f1, err := os.OpenFile("data.txt", os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+    	panic(err)
+	}
+
+	defer f1.Close()
+
+		
+
+    count := 0
+    size := 1024
+    for{
+    	if(count < size){
+    		for i:=30;i<304;i++{
+				// newVal := rangeStake{}
+				// newVal = rangeStake{i}
+				arraylist = append(arraylist, i)
+				cost = i - 40
+
+				if _, err = f1.WriteString(strconv.Itoa(i) + "\n"); err != nil {
+    			panic(err)
+				}
+			}
+    	}else{
+    		break
+    	}
+    	count += 1
+    }
+
+
+    for i:=1;i<9;i++{
+    	val := (i*100) % 13
+    	minerCapacity = append(minerCapacity, val)
+    }
+
+    // fmt.Println(minerCapacity)
+
+    err = f.Close()
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
 
 	// start TCP and serve TCP server
 	// server, err := net.Listen("tcp", ":9000")
@@ -72,6 +130,8 @@ func main() {
 	// }
 	// log.Println("HTTP Server Listening on port :9000")
 	// defer server.Close()
+
+
 
 	server, err := net.Listen("tcp", ":9000")
 	if err != nil {
@@ -111,13 +171,11 @@ func pickWinner() {
 	temp := tempBlocks
 	mutex.Unlock()
 
+	// fmt.Print("Miner Capacity - ")
+ //    fmt.Println(minerCapacity)
+
 	// lotteryPool := []string{}
 	if len(temp) > 0 {
-
-		// slightly modified traditional proof of stake algorithm
-		// from all validators who submitted a block, weight them by the number of staked tokens
-		// in traditional proof of stake, validators can participate without submitting a block to be forged
-		
 
 	OUTER:
 		for _, block := range temp {
@@ -151,15 +209,44 @@ func pickWinner() {
 			}
 		}
 
-		// randomly pick winner from lottery pool
-		// s := rand.NewSource(time.Now().Unix())
-		// r := rand.New(s)
-		// lotteryWinner := lotteryPool[r.Intn(len(lotteryPool))]
+		if(count == 0){
+			start := time.Now()
+			fmt.Println(start)
+		}
 
-		fmt.Println(WinnerIndex, len(lotteryPool))
+
+		fmt.Print("No. of times The Miner has been the Winner : ") 
+		fmt.Println(finalWinnerTimes)
 		lotteryWinner := lotteryPool[WinnerIndex%(len(lotteryPool))]
 		WinnerIndex = WinnerIndex + 1
 		
+
+		max := -1
+		win := ""
+		for k, v := range validators{
+			fmt.Println("k:", k, "v:", v)
+			if(v > max){
+				max = v
+				win = k
+			}
+		}
+		
+
+		fmt.Println("Winner : " , win)
+		lotteryWinner = win
+
+
+		fmt.Print("Count = ")
+		fmt.Println(count)
+		count = count + 1
+		if(count == 5){
+			t := time.Now()
+			elapsed := t.Sub(start)
+			fmt.Print("Time Taken : ")
+			fmt.Println(elapsed)
+			count = 0
+		}
+
 
 	
 
@@ -167,6 +254,19 @@ func pickWinner() {
 		// add block of winner to blockcxhain and let all the other nodes know
 		for _, block := range temp {
 			if block.Validator == lotteryWinner {
+				winnerTimes[lotteryWinner] = winnerTimes[lotteryWinner] + 1 
+				finalWinnerTimes[lotteryWinner] =  finalWinnerTimes[lotteryWinner] + 1
+				fmt.Println(winnerTimes)				
+				if(winnerTimes[lotteryWinner] >= 2){
+					validators[lotteryWinner] = validators[lotteryWinner] / 2 
+					winnerTimes[lotteryWinner] = 0
+					
+				}
+				if isTransactionValid(cost){
+					validators[lotteryWinner] = validators[lotteryWinner] / 5
+				}
+
+
 				mutex.Lock()
 				Blockchain = append(Blockchain, block)
 				mutex.Unlock()
@@ -197,7 +297,7 @@ func handleConn(conn net.Conn) {
 
 	// allow user to allocate number of tokens to stake
 	// the greater the number of tokens, the greater chance to forging a new block
-	io.WriteString(conn, "Enter token balance:")
+	io.WriteString(conn, "Enter your capacity: ")
 	scanBalance := bufio.NewScanner(conn)
 	for scanBalance.Scan() {
 		balance, err := strconv.Atoi(scanBalance.Text())
@@ -208,49 +308,20 @@ func handleConn(conn net.Conn) {
 		t := time.Now()
 		address = calculateHash(t.String())
 		validators[address] = balance
+		winnerTimes[address] = 0
 		fmt.Println(validators)
 		break
 	}
 
 	io.WriteString(conn, "\nEnter a new FileName:")
-
 	
 
-	// file, err := os.Open("a.txt")
-    // if err != nil {
-    //     log.Fatal(err)
-    // }
-    // defer file.Close()
-
-    // scanner := bufio.NewScanner(file)
-
-    // var text string = ""
-    // var value string = ""
-    // for scanner.Scan() {             // internally, it advances token based on sperator
-    //     // fmt.Println(scanner.Text()) 
-    //     text = text + scanner.Text() // token in unicode-char
-    // }
-    // fmt.Println(text)
-
-    // value = calculateHash(text)
-    // fmt.Println(value)
-
-
 	scanBPM := bufio.NewScanner(conn)
-
-
 
 	go func() {
 		for {
 			// take in BPM from stdin and add it to blockchain after conducting necessary validation
 			for scanBPM.Scan() {
-				// bpm, err := strconv.Atoi(scanBPM.Text())
-				// // if malicious party tries to mutate the chain with a bad input, delete them as a validator and they lose their staked tokens
-				// if err != nil {
-				// 	log.Printf("%v not a number: %v", scanBPM.Text(), err)
-				// 	delete(validators, address)
-				// 	conn.Close()
-				// }
 
 				file, err := os.Open(scanBPM.Text())
 				if err != nil {
@@ -262,16 +333,17 @@ func handleConn(conn net.Conn) {
 
 				var text string = ""
 				var value string = ""
+
 				for scanner.Scan() {             // internally, it advances token based on sperator
 					// fmt.Println(scanner.Text()) 
 					text = text + scanner.Text() // token in unicode-char
 				}
-				fmt.Println(text)
+				// fmt.Println(text)
 
 				value = calculateHash(text)
-				fmt.Println(value)
+				// fmt.Println(value)
 
-
+				// newMerkelBlock := Block{}
 				mutex.Lock()
 				oldLastIndex := Blockchain[len(Blockchain)-1]
 				mutex.Unlock()
@@ -284,9 +356,13 @@ func handleConn(conn net.Conn) {
 					log.Println(err)
 					continue
 				}
+
+
 				if isBlockValid(newBlock, oldLastIndex) {
 					candidateBlocks <- newBlock
 				}
+
+
 				io.WriteString(conn, "\nEnter a new FileName:")
 			}
 		}
@@ -294,7 +370,7 @@ func handleConn(conn net.Conn) {
 
 	// simulate receiving broadcast
 	for {
-		time.Sleep(30*time.Second)
+		time.Sleep(10*time.Second)
 		mutex.Lock()
 		output, err := json.MarshalIndent(Blockchain, "", "  ")
 		mutex.Unlock()
@@ -308,6 +384,9 @@ func handleConn(conn net.Conn) {
 
 // isBlockValid makes sure block is valid by checking index
 // and comparing the hash of the previous block
+
+// Transaction Verification 
+
 func isBlockValid(newBlock, oldBlock Block) bool {
 	if oldBlock.Index+1 != newBlock.Index {
 		return false
@@ -318,6 +397,24 @@ func isBlockValid(newBlock, oldBlock Block) bool {
 	}
 
 	if calculateBlockHash(newBlock) != newBlock.Hash {
+		return false
+	}
+
+
+	return true
+}
+
+
+//calculateMerkelHash returns the hash of all block information
+func calculateMerkelHash(block Block) string {
+	record := string(block.Index) + string(block.FileHash) + block.PrevHash
+	return calculateHash(record)
+}
+
+
+func isTransactionValid(cost int) bool {
+
+	if(!(cost >= 30 && cost < 2000)){
 		return false
 	}
 
@@ -339,6 +436,9 @@ func calculateBlockHash(block Block) string {
 	return calculateHash(record)
 }
 
+
+
+
 // generateBlock creates a new block using previous block's hash
 func generateBlock(oldBlock Block, BPM string, address string) (Block, error) {
 
@@ -352,6 +452,9 @@ func generateBlock(oldBlock Block, BPM string, address string) (Block, error) {
 	newBlock.PrevHash = oldBlock.Hash
 	newBlock.Hash = calculateBlockHash(newBlock)
 	newBlock.Validator = address
-
+	newBlock.MerkelRoot = calculateMerkelHash(newBlock)
 	return newBlock, nil
 }
+
+
+

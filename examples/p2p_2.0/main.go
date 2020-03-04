@@ -44,6 +44,7 @@ type rangeStake struct {
 }
 var arraylist []rangeStake
 
+var age = 0
 
 // Blockchain is a series of validated Blocks
 var Blockchain []Block
@@ -133,6 +134,7 @@ func handleStream(s net.Stream) {
 func readData(rw *bufio.ReadWriter) {
 
 	for {
+		age = age + 1
 		str, err := rw.ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
@@ -198,10 +200,13 @@ func writeData(rw *bufio.ReadWriter) {
 
 	for {
 		fmt.Print("> ")
+
 		sendData, err := stdReader.ReadString('\n')
 		if err != nil {
 			log.Fatal(err)
 		}
+		start := time.Now().UnixNano() / 1000000
+
 
 		sendData = strings.Replace(sendData, "\n", "", -1)
 		bpm, err := strconv.Atoi(sendData)
@@ -239,13 +244,25 @@ func writeData(rw *bufio.ReadWriter) {
 			}
 		}
 
+
+		fmt.Println(arraylist)
+
+		spew.Dump(Blockchain)
+		end := time.Now().UnixNano() / 1000000
+		timetaken := end - start
+
+		fmt.Println("Time taken: " + strconv.Itoa(int(timetaken)))
+
 		var textToBeAdded string
 		if (flag == 1){
-			textToBeAdded = "UserId : " + BasicHostId + "\t" + "Number of Blocks Mined : 1\t" + "Wrong Transactions : 0\n"  
+			textToBeAdded = BasicHostId + "\t" + "1\t" + "0\t" + strconv.Itoa(int(timetaken)) + "\t" + strconv.Itoa(age) + "\n"     
 		} else {
-			textToBeAdded = "UserId : " + BasicHostId + "\t" + "number of Blocks Mined : 0\t" + "Wrong Transactions : 1\n" 
+			textToBeAdded = BasicHostId + "\t" + "0\t" + "0\t" + strconv.Itoa(int(timetaken)) + "\t" + strconv.Itoa(age) + "\n"     
 		}
 		
+
+		age = 0
+
 
 		f, err := os.OpenFile("data.txt", os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
@@ -259,9 +276,7 @@ func writeData(rw *bufio.ReadWriter) {
 		}
 
 
-		fmt.Println(arraylist)
 
-		spew.Dump(Blockchain)
 
 		mutex.Lock()
 		rw.WriteString(fmt.Sprintf("%s\n", string(bytes)))
@@ -280,7 +295,7 @@ func main() {
        	return
     }
 
-    l, err := f.WriteString("Welcome to Our BlockChain World!!!\n")
+    l, err := f.WriteString("")
     if err != nil {
         fmt.Println(err)
         f.Close()

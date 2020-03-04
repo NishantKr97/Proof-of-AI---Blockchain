@@ -1,5 +1,5 @@
-Welcome to Our BlockChain World!!!
-UserId : QmTDds1c2T7zMgNDfCKzCmiV2xZp5sPxzShiQzV4Q42fVz	Number of Blocks Mined : 1	Wrong Transactions : 0
-UserId : QmXXbTQ9qvWjkukGHQjPecnwFfpYcfFCdvXC3Rc8tvUbJc	Number of Blocks Mined : 1	Wrong Transactions : 0
-UserId : Qmd8nwuMRmetuD7RZNLRQVYdFgBeemgfePrPYtFoq6dcYD	Number of Blocks Mined : 1	Wrong Transactions : 0
-UserId : QmXXbTQ9qvWjkukGHQjPecnwFfpYcfFCdvXC3Rc8tvUbJc	number of Blocks Mined : 0	Wrong Transactions : 1
+QmNsPdtjDmLi77QmBedqEHjzpX2csRNNbQMr8a7mRx8PiH	1	0	3	7
+QmXptKkqdYRHvd2H9YrVNujZxmzpJuPVgfvrdkMajJUXEU	0	0	3	6
+QmNr1ukdToTux16dD5ugreFuQgoyrB2wZ3GLBNYPjgwddf	0	0	5	19
+QmNr1ukdToTux16dD5ugreFuQgoyrB2wZ3GLBNYPjgwddf	1	0	1	22
+QmNr1ukdToTux16dD5ugreFuQgoyrB2wZ3GLBNYPjgwddf	1	0	4	6
