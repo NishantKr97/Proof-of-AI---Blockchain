@@ -16,7 +16,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"os/exec"
 	"time"
+	// "runtime"
+
 
 	"github.com/davecgh/go-spew/spew"
 	golog "github.com/ipfs/go-log"
@@ -29,7 +32,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	gologging "github.com/whyrusleeping/go-logging"
 )
-
+// go run main.go -l 10000 -secio
 // Block represents each 'item' in the blockchain
 type Block struct {
 	Index     int
@@ -39,10 +42,20 @@ type Block struct {
 	PrevHash  string
 }
 
+type MinerDetails struct {
+	UserId    	string
+	NumBlocks 	int
+	Faulty      int
+	TimeToMine  int
+	Age      	int
+}
+
 type rangeStake struct {
 	Number int
 }
 var arraylist []rangeStake
+
+var Miner MinerDetails
 
 var age = 0
 
@@ -52,6 +65,7 @@ var Blockchain []Block
 var mutex = &sync.Mutex{}
 
 var BasicHostId string
+var globalHostId string
 
 // makeBasicHost creates a LibP2P host with a random peer ID listening on the
 // given multiaddress. It will use secio if secio is true.
@@ -85,6 +99,32 @@ func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error
 	}
 
 	BasicHostId = basicHost.ID().Pretty()
+	// globalHostId = BasicHostId
+	// fmt.Print("Global Host Id - " + globalHostId)
+
+
+	// f, err := os.OpenFile("miner.txt", os.O_RDWR, 0644)
+	// if err != nil {
+ //    	panic(err)
+	// }
+
+	// defer f.Close()
+
+	// if _, err = f.WriteString(BasicHostId); err != nil {
+ //   		panic(err)
+	// }
+
+
+	// f1, err := os.OpenFile("minerdets.csv", os.O_RDWR, 0644)
+	// if err != nil {
+ //    	panic(err)
+	// }
+
+	// defer f1.Close()
+
+	// if _, err = f1.WriteString("User ID\tNo. of Blocks Mined\tFaulty Transactions\tTime to Mine\tAge\n"); err != nil {
+ //   		panic(err)
+	// }
 
 
 	// Build host multiaddress
@@ -115,23 +155,60 @@ func makeBasicHost(listenPort int, secio bool, randseed int64) (host.Host, error
 func handleStream(s net.Stream) {
 
 	log.Println("Got a new stream!")
+	// fmt.Println("globalHostId - " + globalHostId)
+
 
 	// Create a buffer stream for non blocking read and write.
 	rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 
-	fmt.Println("hi befre read 1")
 	go readData(rw)
-	fmt.Println("hi between 1")
 	go writeData(rw)
-	fmt.Println("hi after write 1")
 
-	// go readData(rw)
-	// go writeData(rw)
-
-	// stream 's' will stay open until you close it (or the other side closes it).
 }
 
 func readData(rw *bufio.ReadWriter) {
+	var textToBeAdded string
+	textToBeAdded = Miner.UserId + "," + strconv.Itoa(Miner.NumBlocks) + "," + strconv.Itoa(Miner.Faulty) + "," + strconv.Itoa(Miner.TimeToMine) + "," + strconv.Itoa(Miner.Age) + "\n" 
+	mutex.Lock()
+		f1, err := os.OpenFile("minerdets.csv",os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+		if err != nil {
+    		panic(err)
+		}
+
+		defer f1.Close()
+
+		if _, err = f1.WriteString(textToBeAdded); err != nil {
+    		panic(err)
+		}
+			mutex.Unlock()
+
+		//out, err := exec.Command("/home/nishantkr97/Downloads/Proof-of-AI---Blockchain/examples/p2p_2.0/MinerDetection.py").Output()
+		// fmt.Println(out)
+	
+
+		// RUNNING PYTHON CODE
+
+
+		cmd := exec.Command("/usr/bin/python3","/home/nishantkr97/Downloads/Proof-of-AI---Blockchain/examples/p2p_2.0/MinerDetection.py")
+		out,err := cmd.CombinedOutput()
+
+		if err != nil {
+    		println("error is nibs " +err.Error()+" "+string(out))
+    		return
+		}
+
+		fmt.Println(string(out))
+
+
+
+
+    	// if err != nil {
+     //    	fmt.Printf("%s", err)
+    	// }
+
+	    // fmt.Println("Command Successfully Executed")
+    	// output := string(out[:])
+    	// fmt.Println(output)
 
 	for {
 		age = age + 1
@@ -158,6 +235,31 @@ func readData(rw *bufio.ReadWriter) {
 				}
 			}
 			fmt.Println(arraylist)
+
+
+
+	file, err := os.Open("miner.txt")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer file.Close()
+
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        globalHostId = scanner.Text()
+        fmt.Println("The Miner is " + globalHostId)
+    }
+
+
+    fmt.Println("Miner details are: " + Miner.UserId + " num" + strconv.Itoa(Miner.NumBlocks))
+
+
+    if err := scanner.Err(); err != nil {
+        log.Fatal(err)
+    }
+
+
+
 
 			mutex.Lock()
 			if len(chain) > len(Blockchain) {
@@ -289,24 +391,31 @@ func writeData(rw *bufio.ReadWriter) {
 
 func main() {
 
-	f, err := os.Create("data.txt")
-    if err != nil {
-        fmt.Println(err)
-       	return
-    }
+	// f, err := os.Create("data.txt")
+ //    if err != nil {
+ //        fmt.Println(err)
+ //       	return
+ //    }
 
-    l, err := f.WriteString("")
-    if err != nil {
-        fmt.Println(err)
-        f.Close()
-        return
-    }
-    fmt.Println(l, "bytes written successfully")
-    err = f.Close()
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
+ //    l, err := f.WriteString("")
+ //    if err != nil {
+ //        fmt.Println(err)
+ //        f.Close()
+ //        return
+ //    }
+ //    fmt.Println(l, "bytes written successfully")
+ //    err = f.Close()
+ //    if err != nil {
+ //        fmt.Println(err)
+ //        return
+ //    }
+
+ //    fm, err := os.Create("miner.txt")
+    // if err != nil {
+    //     fmt.Println(err)
+    //    	return
+    // }
+    // fmt.Println(fm, "Miner File Created")
 
 
 
@@ -354,6 +463,25 @@ func main() {
 		// Set a stream handler on host A. /p2p/1.0.0 is
 		// a user-defined protocol name.
 		ha.SetStreamHandler("/p2p/1.0.0", handleStream)
+		Miner.UserId = BasicHostId
+    Miner.NumBlocks = 1
+    Miner.Faulty = 99
+    Miner.TimeToMine = 99
+    Miner.Age = 1
+
+  //   textToBeAdded := "User ID"+"\t" +"No. of Blocks Mined"+"\t"+"Faulty Transactions"+"\t"+"Time to Mine"+"\t"+"Age"+"\n"
+
+  //   f, err := os.OpenFile("minerdets.csv", os.O_RDWR|os.O_WRONLY, 0600)
+		// if err != nil {
+  //   		panic(err)
+		// }
+
+
+		// if _, err = f.WriteString(textToBeAdded); err != nil {
+  //   		panic(err)
+		// }
+		// defer f.Close()
+
 
 		select {} // hang forever
 		/**** This is where the listener code ends ****/
@@ -397,16 +525,20 @@ func main() {
 		}
 		// Create a buffered stream so that read and writes are non blocking.
 		rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
-
+		Miner.UserId = BasicHostId
+    Miner.NumBlocks = 99
+    Miner.Faulty = 0
+    Miner.TimeToMine = 1
+    Miner.Age = 99
 
 		// Create a thread to read and write data.
-		fmt.Println("hi befre write")
+		// fmt.Println("hi befre write")
 		go readData(rw)
-				fmt.Println("hi between")
+				// fmt.Println("hi between")
 
 		go writeData(rw)
 		
-		fmt.Println("hi after read")
+		// fmt.Println("hi after read")
 
 		select {} // hang forever
 
@@ -415,6 +547,16 @@ func main() {
 
 // make sure block is valid by checking index, and comparing the hash of the previous block
 func isBlockValid(newBlock, oldBlock Block) bool {
+
+
+
+	if(globalHostId != BasicHostId){
+		fmt.Println("Terminal - " + BasicHostId + " - " + globalHostId)
+		return false
+	}
+
+
+
 	if oldBlock.Index+1 != newBlock.Index {
 		return false
 	}
