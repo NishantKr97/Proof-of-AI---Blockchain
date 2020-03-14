@@ -60,7 +60,7 @@ def main():
 	for index, row in Final_Array.iterrows():
 		if row['Output'] == 1:
 			miner = row['User ID']
-			break 
+			#break 
 
 	print(miner)	
 

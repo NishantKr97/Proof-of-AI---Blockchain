@@ -301,6 +301,12 @@ func writeData(rw *bufio.ReadWriter) {
 	stdReader := bufio.NewReader(os.Stdin)
 
 	for {
+
+
+
+
+
+
 		fmt.Print("> ")
 
 		sendData, err := stdReader.ReadString('\n')
@@ -379,12 +385,43 @@ func writeData(rw *bufio.ReadWriter) {
 
 
 
+		
+		textToBeAdded = Miner.UserId + "," + strconv.Itoa(Miner.NumBlocks) + "," + strconv.Itoa(Miner.Faulty) + "," + strconv.Itoa(Miner.TimeToMine) + "," + strconv.Itoa(Miner.Age) + "\n" 
+		mutex.Lock()
+		f1, err := os.OpenFile("minerdets.csv",os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+		if err != nil {
+    		panic(err)
+		}
+
+		defer f1.Close()
+
+		if _, err = f1.WriteString(textToBeAdded); err != nil {
+    		panic(err)
+		}
+			mutex.Unlock()
+
+
+		cmd := exec.Command("/usr/bin/python3","/home/nishantkr97/Downloads/Proof-of-AI---Blockchain/examples/p2p_2.0/MinerDetection.py")
+		out,err := cmd.CombinedOutput()
+
+		if err != nil {
+    		println("error is nibs " +err.Error()+" "+string(out))
+    		return
+		}
+
+		fmt.Println(string(out))
+
+
+
 
 		mutex.Lock()
 		rw.WriteString(fmt.Sprintf("%s\n", string(bytes)))
 
 		rw.Flush()
 		mutex.Unlock()
+
+
+
 	}
 
 }
@@ -526,10 +563,10 @@ func main() {
 		// Create a buffered stream so that read and writes are non blocking.
 		rw := bufio.NewReadWriter(bufio.NewReader(s), bufio.NewWriter(s))
 		Miner.UserId = BasicHostId
-    Miner.NumBlocks = 99
-    Miner.Faulty = 0
-    Miner.TimeToMine = 1
-    Miner.Age = 99
+	    Miner.NumBlocks = 99
+	    Miner.Faulty = 0
+	    Miner.TimeToMine = 1
+	    Miner.Age = 99
 
 		// Create a thread to read and write data.
 		// fmt.Println("hi befre write")
@@ -550,10 +587,7 @@ func isBlockValid(newBlock, oldBlock Block) bool {
 
 
 
-	if(globalHostId != BasicHostId){
-		fmt.Println("Terminal - " + BasicHostId + " - " + globalHostId)
-		return false
-	}
+
 
 
 
@@ -567,6 +601,22 @@ func isBlockValid(newBlock, oldBlock Block) bool {
 
 	if calculateHash(newBlock) != newBlock.Hash {
 		return false
+	}
+
+	if(globalHostId != BasicHostId){
+		Miner.Age = 1
+		Miner.TimeToMine = 100
+		Miner.Faulty = 100
+		Miner.NumBlocks = 1
+		fmt.Println("Terminal - " + BasicHostId + " - " + globalHostId)
+		return false
+	}else{
+		Miner.NumBlocks += 100
+	    //Miner.Faulty = 0
+	    //Miner.TimeToMine = 1
+	    Miner.Age = 100
+	    return true
+
 	}
 
 	return true
