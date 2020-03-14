@@ -400,16 +400,17 @@ func writeData(rw *bufio.ReadWriter) {
 		}
 			mutex.Unlock()
 
+		if(globalHostId == BasicHostId){
+			cmd := exec.Command("/usr/bin/python3","/home/nishantkr97/Downloads/Proof-of-AI---Blockchain/examples/p2p_2.0/MinerDetection.py")
+			out,err := cmd.CombinedOutput()
 
-		cmd := exec.Command("/usr/bin/python3","/home/nishantkr97/Downloads/Proof-of-AI---Blockchain/examples/p2p_2.0/MinerDetection.py")
-		out,err := cmd.CombinedOutput()
+			if err != nil {
+	    		println("error is nibs " +err.Error()+" "+string(out))
+	    		return
+			}
 
-		if err != nil {
-    		println("error is nibs " +err.Error()+" "+string(out))
-    		return
+			fmt.Println(string(out))
 		}
-
-		fmt.Println(string(out))
 
 
 
@@ -608,13 +609,17 @@ func isBlockValid(newBlock, oldBlock Block) bool {
 		Miner.TimeToMine = 100
 		Miner.Faulty = 100
 		Miner.NumBlocks = 1
+
+		// Miner.Age += 1
+		// arraylist[newBlock.BPM].Number = newBlock.BPM
 		fmt.Println("Terminal - " + BasicHostId + " - " + globalHostId)
 		return false
 	}else{
 		Miner.NumBlocks += 100
-	    //Miner.Faulty = 0
-	    //Miner.TimeToMine = 1
 	    Miner.Age = 100
+
+	    // Miner.NumBlocks += 1
+	    // Miner.Age = 0
 	    return true
 
 	}
